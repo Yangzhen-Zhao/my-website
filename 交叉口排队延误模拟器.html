@@ -1,0 +1,118 @@
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>验证版 - 交叉口排队延误模拟器</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f4f6f8; }
+    .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); max-width: 700px; margin: auto; }
+    label { display: block; margin-top: 10px; }
+    input { width: 80px; margin-left: 10px; }
+    canvas { margin-top: 30px; }
+    button { margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    summary { cursor: pointer; margin-top: 20px; font-weight: bold; }
+    details[open] summary { font-weight: bold; }
+    details { background: #eef2f5; padding: 10px 15px; border-radius: 6px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h2>🚦 交叉口交叉口排队延误模拟器</h2>
+
+    <details open>
+      <summary>📘 使用说明</summary>
+      <ul>
+        <li>输入交叉口的基本交通参数（单位为秒与辆/秒）</li>
+        <li>点击“开始模拟”展示排队车辆数量变化趋势</li>
+        <li>Webster 延误计算公式：<br>
+          <code>d = [C(1 - g/C)²] / [2(1 - x)]</code>，其中 <code>x = λ / μ</code>，λ为到达率，μ为饱和流率</li>
+        <li>排队曲线基于 D/D/1 模拟模型：<br>
+          到达速率恒定，放行仅在绿灯时间，队列呈锯齿状增长与清空</li>
+        <li>适用于信控交叉口配时优化分析、延误估算与教学可视化</li>
+      </ul>
+    </details>
+
+    <label>车流到达率 λ（辆/秒）<input type="number" id="lambda" value="0.2" step="0.01"></label>
+    <label>通行率 μ（辆/秒）<input type="number" id="mu" value="0.5" step="0.01"></label>
+    <label>信号周期 C（秒）<input type="number" id="cycle" value="60"></label>
+    <label>绿灯时长 g（秒）<input type="number" id="green" value="30"></label>
+
+    <button onclick="simulate()">开始模拟</button>
+
+    <p id="result"></p>
+    <canvas id="queueChart" width="650" height="300"></canvas>
+  </div>
+
+<script>
+let queueChartInstance = null;
+
+function simulate() {
+  const lambda = parseFloat(document.getElementById("lambda").value);
+  const mu = parseFloat(document.getElementById("mu").value);
+  const C = parseFloat(document.getElementById("cycle").value);
+  const g = parseFloat(document.getElementById("green").value);
+
+  const x = lambda / mu;
+  const d = (C * Math.pow(1 - g / C, 2)) / (2 * (1 - x));  // Webster 延误计算
+
+  const time = [], queue = [];
+  const totalTime = C * 5;
+  let q = 0, totalDelay = 0;
+
+  for (let t = 0; t <= totalTime; t++) {
+    const inFlow = lambda;
+    const outFlow = (t % C < g) ? mu : 0;
+    q += inFlow - outFlow;
+    if (q < 0) q = 0;
+    time.push(t);
+    queue.push(q.toFixed(2));
+    totalDelay += q;
+  }
+
+  const avgDelayEmpirical = totalDelay / totalTime;
+
+  document.getElementById("result").innerHTML = `
+    📊 <strong>Webster 延误估算</strong>：${d.toFixed(2)} 秒/辆<br>
+    📈 <strong>模拟平均排队延误</strong>：${avgDelayEmpirical.toFixed(2)} 秒/辆
+  `;
+
+  const ctx = document.getElementById("queueChart").getContext("2d");
+  if (queueChartInstance) queueChartInstance.destroy();
+  queueChartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: time,
+      datasets: [{
+        label: "排队车辆数",
+        data: queue,
+        borderColor: "blue",
+        backgroundColor: "transparent",
+        fill: false,
+        tension: 0.3,
+        borderWidth: 2,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          labels: {
+            usePointStyle: false,
+            boxWidth: 20,
+            boxHeight: 2
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: "时间 (秒)" }},
+        y: { title: { display: true, text: "排队车辆数" }, beginAtZero: true }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
